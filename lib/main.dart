@@ -278,8 +278,6 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
         return 'Full';
       case BatteryState.connectedNotCharging:
         return 'Connected, not charging';
-      case BatteryState.notCharging:
-        return 'Not charging';
       case BatteryState.unknown:
         return 'Unknown';
     }
