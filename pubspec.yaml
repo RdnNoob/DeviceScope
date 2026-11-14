@@ -1,14 +1,15 @@
 name: devicescope
 description: Offline Android device diagnostic toolkit.
 publish_to: 'none'
-version: 0.1.0+1
+version: 0.1.0+2
 
 environment:
-  sdk: '>=3.3.0 <4.0.0'
+  sdk: '>=3.10.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
+  device_info_plus: ^13.3.0
 
 dev_dependencies:
   flutter_test:
