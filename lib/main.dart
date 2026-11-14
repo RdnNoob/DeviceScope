@@ -1,9 +1,15 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:battery_plus/battery_plus.dart';
 
 void main() {
   runApp(const DeviceScopeApp());
 }
+
+const Color primaryBlue = Color(0xFF276BAA);
+const Color backgroundColor = Color(0xFFF2F4F6);
 
 class DeviceScopeApp extends StatelessWidget {
   const DeviceScopeApp({super.key});
@@ -15,13 +21,13 @@ class DeviceScopeApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFF2F4F6),
+        scaffoldBackgroundColor: backgroundColor,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF276BAA),
+          seedColor: primaryBlue,
           brightness: Brightness.light,
         ),
         appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFFF2F4F6),
+          backgroundColor: backgroundColor,
           foregroundColor: Color(0xFF263746),
           elevation: 0,
         ),
@@ -50,10 +56,7 @@ class DashboardPage extends StatelessWidget {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [
-                  Color(0xFF347DBB),
-                  Color(0xFF235B91),
-                ],
+                colors: [Color(0xFF347DBB), Color(0xFF235B91)],
               ),
               borderRadius: BorderRadius.circular(12),
             ),
@@ -204,7 +207,7 @@ class DeviceOverview extends StatelessWidget {
             leading: const Icon(
               Icons.smartphone,
               size: 35,
-              color: Color(0xFF276BAA),
+              color: primaryBlue,
             ),
             title: Text(
               '${info.manufacturer} ${info.model}',
@@ -228,11 +231,58 @@ class DeviceInfoPage extends StatefulWidget {
 
 class _DeviceInfoPageState extends State<DeviceInfoPage> {
   late Future<AndroidDeviceInfo> deviceFuture;
+  late Future<int> batteryLevelFuture;
+  late Future<BatteryState> batteryStateFuture;
 
   @override
   void initState() {
     super.initState();
+    loadInformation();
+  }
+
+  void loadInformation() {
     deviceFuture = DeviceInfoPlugin().androidInfo;
+
+    final battery = Battery();
+    batteryLevelFuture = battery.batteryLevel;
+    batteryStateFuture = battery.batteryState;
+  }
+
+  String formatBytes(int bytes) {
+    if (bytes <= 0) return 'Unavailable';
+
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    double value = bytes.toDouble();
+    int unitIndex = 0;
+
+    while (value >= 1024 && unitIndex < units.length - 1) {
+      value /= 1024;
+      unitIndex++;
+    }
+
+    return '${value.toStringAsFixed(2)} ${units[unitIndex]}';
+  }
+
+  String formatRam(int megabytes) {
+    if (megabytes <= 0) return 'Unavailable';
+    return '${(megabytes / 1024).toStringAsFixed(2)} GB';
+  }
+
+  String batteryStateName(BatteryState state) {
+    switch (state) {
+      case BatteryState.charging:
+        return 'Charging';
+      case BatteryState.discharging:
+        return 'Discharging';
+      case BatteryState.full:
+        return 'Full';
+      case BatteryState.connectedNotCharging:
+        return 'Connected, not charging';
+      case BatteryState.notCharging:
+        return 'Not charging';
+      case BatteryState.unknown:
+        return 'Unknown';
+    }
   }
 
   @override
@@ -245,9 +295,7 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
         future: deviceFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
+            return const Center(child: CircularProgressIndicator());
           }
 
           if (snapshot.hasError || !snapshot.hasData) {
@@ -264,7 +312,7 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF276BAA),
+                  color: primaryBlue,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Column(
@@ -292,6 +340,7 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
                   ],
                 ),
               ),
+
               const SizedBox(height: 20),
               const SectionTitle(title: 'GENERAL INFORMATION'),
               InfoCard(items: {
@@ -300,8 +349,10 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
                 'Model': info.model,
                 'Device': info.device,
                 'Product': info.product,
+                'Device Name': info.name,
                 'Physical Device': info.isPhysicalDevice ? 'Yes' : 'No',
               }),
+
               const SizedBox(height: 18),
               const SectionTitle(title: 'ANDROID SYSTEM'),
               InfoCard(items: {
@@ -313,23 +364,140 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
                 'Build Display': info.display,
                 'Build Type': info.type,
                 'Build Tags': info.tags,
+                'Fingerprint': info.fingerprint,
               }),
+
               const SizedBox(height: 18),
-              const SectionTitle(title: 'HARDWARE INFORMATION'),
+              const SectionTitle(title: 'PROCESSOR INFORMATION'),
+              InfoCard(items: {
+                'Hardware Identifier': info.hardware,
+                'Board': info.board,
+                'CPU Cores': Platform.numberOfProcessors.toString(),
+                'Supported ABIs': info.supportedAbis.join(', '),
+                '32-bit ABIs': info.supported32BitAbis.join(', '),
+                '64-bit ABIs': info.supported64BitAbis.join(', '),
+                'CPU Frequency': 'Unavailable through current API',
+                'Chipset Marketing Name':
+                    'Not independently verified',
+              }),
+
+              const SizedBox(height: 18),
+              const SectionTitle(title: 'MEMORY INFORMATION'),
+              InfoCard(items: {
+                'Physical RAM': formatRam(info.physicalRamSize),
+                'Available RAM': formatRam(info.availableRamSize),
+                'Low RAM Device': info.isLowRamDevice ? 'Yes' : 'No',
+              }),
+
+              const SizedBox(height: 18),
+              const SectionTitle(title: 'STORAGE INFORMATION'),
+              InfoCard(items: {
+                'Total Disk Size': formatBytes(info.totalDiskSize),
+                'Free Disk Space': formatBytes(info.freeDiskSize),
+                'Used Disk Space': info.totalDiskSize > 0 &&
+                        info.freeDiskSize <= info.totalDiskSize
+                    ? formatBytes(
+                        info.totalDiskSize - info.freeDiskSize,
+                      )
+                    : 'Unavailable',
+              }),
+
+              const SizedBox(height: 18),
+              const SectionTitle(title: 'DISPLAY INFORMATION'),
+              Builder(
+                builder: (context) {
+                  final media = MediaQuery.of(context);
+                  final pixelWidth =
+                      (media.size.width * media.devicePixelRatio).round();
+                  final pixelHeight =
+                      (media.size.height * media.devicePixelRatio).round();
+
+                  return InfoCard(items: {
+                    'Physical Resolution':
+                        '$pixelWidth × $pixelHeight pixels',
+                    'Logical Resolution':
+                        '${media.size.width.toStringAsFixed(1)} × '
+                            '${media.size.height.toStringAsFixed(1)} dp',
+                    'Pixel Density':
+                        '${media.devicePixelRatio.toStringAsFixed(2)}x',
+                    'Refresh Rate':
+                        'Unavailable through current API',
+                  });
+                },
+              ),
+
+              const SizedBox(height: 18),
+              const SectionTitle(title: 'BATTERY INFORMATION'),
+              FutureBuilder<int>(
+                future: batteryLevelFuture,
+                builder: (context, batterySnapshot) {
+                  return FutureBuilder<BatteryState>(
+                    future: batteryStateFuture,
+                    builder: (context, stateSnapshot) {
+                      return InfoCard(items: {
+                        'Battery Level': batterySnapshot.hasData
+                            ? '${batterySnapshot.data}%'
+                            : batterySnapshot.hasError
+                                ? 'Unavailable'
+                                : 'Reading...',
+                        'Battery State': stateSnapshot.hasData
+                            ? batteryStateName(stateSnapshot.data!)
+                            : stateSnapshot.hasError
+                                ? 'Unavailable'
+                                : 'Reading...',
+                        'Battery Temperature':
+                            'Unavailable through current API',
+                        'Battery Health':
+                            'Not tested',
+                        'Full Charge Capacity':
+                            'Unavailable through current API',
+                      });
+                    },
+                  );
+                },
+              ),
+
+              const SizedBox(height: 20),
+              const SectionTitle(title: 'HARDWARE IDENTIFIERS'),
               InfoCard(items: {
                 'Hardware': info.hardware,
                 'Board': info.board,
                 'Bootloader': info.bootloader,
-                'Supported ABIs': info.supportedAbis.join(', '),
                 'Host': info.host,
               }),
+
               const SizedBox(height: 18),
-              const Text(
-                'Information is provided by Android system APIs. '
-                'Some fields may be restricted or unavailable.',
-                style: TextStyle(
-                  color: Colors.black54,
-                  fontSize: 12,
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.blueGrey.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.blueGrey.shade100),
+                ),
+                child: const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      color: primaryBlue,
+                    ),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Transparency Notice\n'
+                        'Information is retrieved from available '
+                        'Android and Flutter APIs. Some values may be '
+                        'restricted, unavailable, or not independently '
+                        'verified. Display resolution is calculated from '
+                        'the active application window metrics.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          height: 1.5,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -350,6 +518,9 @@ class InfoCard extends StatelessWidget {
     return Card(
       child: Column(
         children: items.entries.map((entry) {
+          final unavailable = entry.value == 'Unavailable' ||
+              entry.value == 'Not independently verified';
+
           return Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: 16,
@@ -373,9 +544,12 @@ class InfoCard extends StatelessWidget {
                   child: Text(
                     entry.value.isEmpty ? 'Unavailable' : entry.value,
                     textAlign: TextAlign.end,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 13,
+                      color: unavailable
+                          ? Colors.blueGrey
+                          : const Color(0xFF263746),
                     ),
                   ),
                 ),
@@ -444,9 +618,7 @@ class DiagnosticTile extends StatelessWidget {
             children: [
               Icon(
                 icon,
-                color: active
-                    ? const Color(0xFF276BAA)
-                    : Colors.blueGrey,
+                color: active ? primaryBlue : Colors.blueGrey,
                 size: 25,
               ),
               const SizedBox(height: 8),
