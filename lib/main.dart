@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 
 void main() {
   runApp(const DeviceScopeApp());
@@ -20,19 +21,9 @@ class DeviceScopeApp extends StatelessWidget {
           brightness: Brightness.light,
         ),
         appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.white,
-          foregroundColor: Color(0xFF263442),
+          backgroundColor: Color(0xFFF2F4F6),
+          foregroundColor: Color(0xFF263746),
           elevation: 0,
-          centerTitle: false,
-        ),
-        cardTheme: CardThemeData(
-          color: Colors.white,
-          elevation: 1,
-          margin: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-            side: const BorderSide(color: Color(0xFFDCE3E9)),
-          ),
         ),
       ),
       home: const DashboardPage(),
@@ -43,280 +34,439 @@ class DeviceScopeApp extends StatelessWidget {
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
 
-  static const Color primaryBlue = Color(0xFF276BAA);
-  static const Color textDark = Color(0xFF263442);
-  static const Color textMuted = Color(0xFF758392);
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Row(
-          children: [
-            Icon(Icons.phone_android, color: primaryBlue),
-            SizedBox(width: 10),
-            Text(
-              'DeviceScope',
-              style: TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.settings_outlined),
-            tooltip: 'Settings',
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _buildWelcomePanel(),
-            const SizedBox(height: 20),
-            const Text(
-              'DEVICE OVERVIEW',
-              style: TextStyle(
-                color: textMuted,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1,
-              ),
-            ),
-            const SizedBox(height: 10),
-            _buildDeviceCard(),
-            const SizedBox(height: 22),
-            const Text(
-              'DIAGNOSTIC TOOLS',
-              style: TextStyle(
-                color: textMuted,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1,
-              ),
-            ),
-            const SizedBox(height: 10),
-            _buildDiagnosticGrid(),
-            const SizedBox(height: 22),
-            _buildReportCard(),
-            const SizedBox(height: 20),
-            const Center(
-              child: Text(
-                'DeviceScope • Version 0.1.0',
-                style: TextStyle(
-                  color: textMuted,
-                  fontSize: 11,
-                ),
-              ),
-            ),
-          ],
+        title: const Text(
+          'DeviceScope',
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
       ),
-    );
-  }
-
-  Widget _buildWelcomePanel() {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: primaryBlue,
-        borderRadius: BorderRadius.circular(10),
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFF347DBB),
-            Color(0xFF245D91),
-          ],
-        ),
-      ),
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      body: ListView(
+        padding: const EdgeInsets.all(18),
         children: [
-          Text(
-            'Smartphone Diagnostics',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 19,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          SizedBox(height: 7),
-          Text(
-            'Inspect your device hardware and software condition.',
-            style: TextStyle(
-              color: Color(0xFFE8F2FC),
-              fontSize: 13,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDeviceCard() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            _infoRow(
-              Icons.smartphone,
-              'Device model',
-              'Detecting...',
-            ),
-            const Divider(height: 22),
-            _infoRow(
-              Icons.android,
-              'Android version',
-              'Detecting...',
-            ),
-            const Divider(height: 22),
-            _infoRow(
-              Icons.memory,
-              'Processor',
-              'Not available yet',
-            ),
-            const Divider(height: 22),
-            _infoRow(
-              Icons.battery_full,
-              'Battery',
-              'Not available yet',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _infoRow(IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Icon(icon, color: primaryBlue, size: 21),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            label,
-            style: const TextStyle(
-              color: textDark,
-              fontSize: 13,
-            ),
-          ),
-        ),
-        Text(
-          value,
-          style: const TextStyle(
-            color: textMuted,
-            fontSize: 12,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDiagnosticGrid() {
-    final tools = [
-      _DiagnosticItem(Icons.info_outline, 'Device Info'),
-      _DiagnosticItem(Icons.memory, 'Software'),
-      _DiagnosticItem(Icons.battery_std, 'Battery'),
-      _DiagnosticItem(Icons.display_settings, 'Display'),
-      _DiagnosticItem(Icons.touch_app, 'Touchscreen'),
-      _DiagnosticItem(Icons.sensors, 'Sensors'),
-      _DiagnosticItem(Icons.camera_alt_outlined, 'Camera'),
-      _DiagnosticItem(Icons.volume_up_outlined, 'Audio'),
-      _DiagnosticItem(Icons.wifi, 'Connectivity'),
-    ];
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: tools.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
-        childAspectRatio: 1.05,
-      ),
-      itemBuilder: (context, index) {
-        final item = tools[index];
-
-        return Card(
-          child: InkWell(
-            borderRadius: BorderRadius.circular(10),
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('${item.title} module is coming soon.'),
-                  duration: const Duration(seconds: 2),
-                ),
-              );
-            },
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    item.icon,
-                    color: primaryBlue,
-                    size: 27,
-                  ),
-                  const SizedBox(height: 9),
-                  Text(
-                    item.title,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: textDark,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [
+                  Color(0xFF347DBB),
+                  Color(0xFF235B91),
                 ],
               ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'SMARTPHONE DIAGNOSTICS',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 11,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                SizedBox(height: 10),
+                Text(
+                  'Device Inspection',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 23,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 6),
+                Text(
+                  'Inspect device information and hardware condition.',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ],
             ),
           ),
-        );
-      },
-    );
-  }
-
-  Widget _buildReportCard() {
-    return Card(
-      child: ListTile(
-        leading: const CircleAvatar(
-          backgroundColor: Color(0xFFE7F0F9),
-          child: Icon(
-            Icons.description_outlined,
-            color: primaryBlue,
+          const SizedBox(height: 25),
+          const SectionTitle(title: 'DEVICE OVERVIEW'),
+          const SizedBox(height: 10),
+          const DeviceOverview(),
+          const SizedBox(height: 25),
+          const SectionTitle(title: 'DIAGNOSTIC TOOLS'),
+          const SizedBox(height: 10),
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 1.55,
+            children: [
+              DiagnosticTile(
+                icon: Icons.phone_android,
+                title: 'Device Info',
+                subtitle: 'Device specifications',
+                active: true,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const DeviceInfoPage(),
+                    ),
+                  );
+                },
+              ),
+              const DiagnosticTile(
+                icon: Icons.system_update,
+                title: 'Software',
+                subtitle: 'System inspection',
+              ),
+              const DiagnosticTile(
+                icon: Icons.battery_full,
+                title: 'Battery',
+                subtitle: 'Battery condition',
+              ),
+              const DiagnosticTile(
+                icon: Icons.display_settings,
+                title: 'Display',
+                subtitle: 'Screen inspection',
+              ),
+              const DiagnosticTile(
+                icon: Icons.touch_app,
+                title: 'Touchscreen',
+                subtitle: 'Touch response',
+              ),
+              const DiagnosticTile(
+                icon: Icons.sensors,
+                title: 'Sensors',
+                subtitle: 'Sensor inspection',
+              ),
+              const DiagnosticTile(
+                icon: Icons.camera_alt,
+                title: 'Camera',
+                subtitle: 'Camera inspection',
+              ),
+              const DiagnosticTile(
+                icon: Icons.volume_up,
+                title: 'Audio',
+                subtitle: 'Speaker and microphone',
+              ),
+              const DiagnosticTile(
+                icon: Icons.wifi,
+                title: 'Connectivity',
+                subtitle: 'Network inspection',
+              ),
+            ],
           ),
-        ),
-        title: const Text(
-          'Diagnostic Report',
-          style: TextStyle(
-            color: textDark,
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
+          const SizedBox(height: 25),
+          const SectionTitle(title: 'DIAGNOSTIC REPORT'),
+          const Card(
+            child: ListTile(
+              leading: Icon(Icons.description_outlined),
+              title: Text('No diagnostic report'),
+              subtitle: Text('Complete tests to generate a report.'),
+            ),
           ),
-        ),
-        subtitle: const Text(
-          'View your device inspection summary',
-          style: TextStyle(
-            color: textMuted,
-            fontSize: 11,
-          ),
-        ),
-        trailing: const Icon(
-          Icons.chevron_right,
-          color: textMuted,
-        ),
-        onTap: () {},
+        ],
       ),
     );
   }
 }
 
-class _DiagnosticItem {
-  final IconData icon;
+class DeviceOverview extends StatelessWidget {
+  const DeviceOverview({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<AndroidDeviceInfo>(
+      future: DeviceInfoPlugin().androidInfo,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Card(
+            child: ListTile(
+              leading: CircularProgressIndicator(),
+              title: Text('Detecting device...'),
+            ),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return const Card(
+            child: ListTile(
+              leading: Icon(Icons.warning_amber),
+              title: Text('Device information unavailable'),
+            ),
+          );
+        }
+
+        final info = snapshot.data!;
+
+        return Card(
+          child: ListTile(
+            leading: const Icon(
+              Icons.smartphone,
+              size: 35,
+              color: Color(0xFF276BAA),
+            ),
+            title: Text(
+              '${info.manufacturer} ${info.model}',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: Text('Android ${info.version.release}'),
+            trailing: const Icon(Icons.chevron_right),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class DeviceInfoPage extends StatefulWidget {
+  const DeviceInfoPage({super.key});
+
+  @override
+  State<DeviceInfoPage> createState() => _DeviceInfoPageState();
+}
+
+class _DeviceInfoPageState extends State<DeviceInfoPage> {
+  late Future<AndroidDeviceInfo> deviceFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    deviceFuture = DeviceInfoPlugin().androidInfo;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Device Information'),
+      ),
+      body: FutureBuilder<AndroidDeviceInfo>(
+        future: deviceFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          }
+
+          if (snapshot.hasError || !snapshot.hasData) {
+            return const Center(
+              child: Text('Unable to retrieve device information.'),
+            );
+          }
+
+          final info = snapshot.data!;
+
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF276BAA),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  children: [
+                    const Icon(
+                      Icons.phone_android,
+                      color: Colors.white,
+                      size: 45,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      '${info.manufacturer} ${info.model}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      'Android ${info.version.release}',
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              const SectionTitle(title: 'GENERAL INFORMATION'),
+              InfoCard(items: {
+                'Manufacturer': info.manufacturer,
+                'Brand': info.brand,
+                'Model': info.model,
+                'Device': info.device,
+                'Product': info.product,
+                'Physical Device': info.isPhysicalDevice ? 'Yes' : 'No',
+              }),
+              const SizedBox(height: 18),
+              const SectionTitle(title: 'ANDROID SYSTEM'),
+              InfoCard(items: {
+                'Android Version': info.version.release,
+                'SDK Version': info.version.sdkInt.toString(),
+                'Security Patch': info.version.securityPatch,
+                'Build ID': info.id,
+                'Build Display': info.display,
+                'Build Type': info.type,
+                'Build Tags': info.tags,
+              }),
+              const SizedBox(height: 18),
+              const SectionTitle(title: 'HARDWARE INFORMATION'),
+              InfoCard(items: {
+                'Hardware': info.hardware,
+                'Board': info.board,
+                'Bootloader': info.bootloader,
+                'Supported ABIs': info.supportedAbis.join(', '),
+                'Host': info.host,
+              }),
+              const SizedBox(height: 18),
+              const Text(
+                'Information is provided by Android system APIs. '
+                'Some fields may be restricted or unavailable.',
+                style: TextStyle(
+                  color: Colors.black54,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class InfoCard extends StatelessWidget {
+  final Map<String, String> items;
+
+  const InfoCard({super.key, required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Column(
+        children: items.entries.map((entry) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 13,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 4,
+                  child: Text(
+                    entry.key,
+                    style: const TextStyle(
+                      color: Colors.black54,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 5,
+                  child: Text(
+                    entry.value.isEmpty ? 'Unavailable' : entry.value,
+                    textAlign: TextAlign.end,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class SectionTitle extends StatelessWidget {
   final String title;
 
-  const _DiagnosticItem(this.icon, this.title);
+  const SectionTitle({super.key, required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.bold,
+        color: Color(0xFF526273),
+        letterSpacing: 0.8,
+      ),
+    );
+  }
+}
+
+class DiagnosticTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool active;
+  final VoidCallback? onTap;
+
+  const DiagnosticTile({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.active = false,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap ??
+            () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('$title module is coming soon.'),
+                ),
+              );
+            },
+        child: Padding(
+          padding: const EdgeInsets.all(13),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                color: active
+                    ? const Color(0xFF276BAA)
+                    : Colors.blueGrey,
+                size: 25,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  color: Colors.black54,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
