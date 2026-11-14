@@ -179,7 +179,7 @@ class DeviceOverview extends StatelessWidget {
     return FutureBuilder<AndroidDeviceInfo>(
       future: DeviceInfoPlugin().androidInfo,
       builder: (context, snapshot) {
-        if (!snapshot.hasData) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return const Card(
             child: ListTile(
               leading: CircularProgressIndicator(),
@@ -188,7 +188,7 @@ class DeviceOverview extends StatelessWidget {
           );
         }
 
-        if (snapshot.hasError) {
+        if (snapshot.hasError || !snapshot.hasData) {
           return const Card(
             child: ListTile(
               leading: Icon(Icons.warning_amber),
@@ -307,7 +307,8 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
               InfoCard(items: {
                 'Android Version': info.version.release,
                 'SDK Version': info.version.sdkInt.toString(),
-                'Security Patch': info.version.securityPatch,
+                'Security Patch':
+                    info.version.securityPatch ?? 'Unavailable',
                 'Build ID': info.id,
                 'Build Display': info.display,
                 'Build Type': info.type,
