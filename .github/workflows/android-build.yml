@@ -33,6 +33,11 @@ jobs:
       - name: Generate Android project
         run: flutter create . --platforms=android --org com.rdnnoob --project-name devicescope
 
+      - name: Install Native Android Code
+        run: |
+          mkdir -p android/app/src/main/kotlin/com/rdnnoob/devicescope
+          cp android-native/MainActivity.kt android/app/src/main/kotlin/com/rdnnoob/devicescope/MainActivity.kt
+
       - name: Configure Android signing
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -41,7 +46,6 @@ jobs:
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           echo "$KEYSTORE_BASE64" | base64 --decode > android/app/devicescope-release.jks
-
           cat > android/key.properties <<EOF
           storePassword=$KEYSTORE_PASSWORD
           keyPassword=$KEY_PASSWORD
@@ -59,7 +63,6 @@ jobs:
           import java.io.FileInputStream
 
           """
-
           content = imports + content
 
           properties = """
