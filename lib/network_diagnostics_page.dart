@@ -48,7 +48,6 @@ class _NetworkDiagnosticsPageState extends State<NetworkDiagnosticsPage> {
   int? _lastRx;
   int? _lastTx;
   DateTime? _lastTrafficAt;
-  Map<String, dynamic> _ipDetails = {};
   final List<double> _rxHistory = [];
   final List<double> _txHistory = [];
   final List<String> _pingLog = [];
@@ -198,7 +197,6 @@ class _NetworkDiagnosticsPageState extends State<NetworkDiagnosticsPage> {
         _asn = asn.isEmpty ? 'UNKNOWN' : asn;
         _country = _clean(json['country']?.toString());
         _city = _clean(json['city']?.toString());
-        _ipDetails = json;
       });
       try {
         final lookup = await InternetAddress.lookup(ip);
