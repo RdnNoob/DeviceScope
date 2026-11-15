@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:battery_plus/battery_plus.dart';
+import 'network_diagnostics_page.dart';
 
 void main() {
   runApp(const DeviceScopeApp());
@@ -219,10 +220,19 @@ class DashboardPage extends StatelessWidget {
                 title: 'Audio',
                 subtitle: 'Speaker and microphone',
               ),
-              const DiagnosticTile(
+              DiagnosticTile(
                 icon: Icons.wifi,
-                title: 'Connectivity',
-                subtitle: 'Network inspection',
+                title: 'Network Diagnostics',
+                subtitle: 'Network tools and live traffic',
+                active: true,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const NetworkDiagnosticsPage(),
+                    ),
+                  );
+                },
               ),
             ],
           ),
