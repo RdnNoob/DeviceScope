@@ -1,7 +1,9 @@
+```dart
 import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:battery_plus/battery_plus.dart';
 
@@ -14,6 +16,61 @@ const Color backgroundColor = Color(0xFFF2F4F6);
 
 const Duration refreshInterval = Duration(seconds: 5);
 const int maxHistoryPoints = 60;
+
+const MethodChannel diagnosticsChannel =
+    MethodChannel('com.rdnnoob.devicescope/diagnostics');
+
+void addHistory(List<double> history, double? value) {
+  if (value == null || !value.isFinite) return;
+
+  history.add(value);
+
+  while (history.length > maxHistoryPoints) {
+    history.removeAt(0);
+  }
+}
+
+String mapValue(Map<String, dynamic> map, String key) {
+  final value = map[key];
+
+  if (value == null) return 'UNKNOWN';
+
+  final text = value.toString().trim();
+
+  return text.isEmpty ? 'UNKNOWN' : text;
+}
+
+String mapBool(Map<String, dynamic> map, String key) {
+  final value = map[key];
+
+  if (value == true) return 'YES';
+  if (value == false) return 'NO';
+
+  return 'UNKNOWN';
+}
+
+Future<Map<String, dynamic>> getNativeDiagnostics(
+  String method,
+) async {
+  if (!Platform.isAndroid) return {};
+
+  try {
+    final result =
+        await diagnosticsChannel.invokeMethod<dynamic>(method);
+
+    if (result is Map) {
+      return Map<String, dynamic>.from(result);
+    }
+  } on PlatformException {
+    return {};
+  } on MissingPluginException {
+    return {};
+  } catch (_) {
+    return {};
+  }
+
+  return {};
+}
 
 class DeviceScopeApp extends StatelessWidget {
   const DeviceScopeApp({super.key});
@@ -99,18 +156,13 @@ class DashboardPage extends StatelessWidget {
               ],
             ),
           ),
-
           const SizedBox(height: 25),
-
           const SectionTitle(title: 'DEVICE OVERVIEW'),
           const SizedBox(height: 10),
           const DeviceOverview(),
-
           const SizedBox(height: 25),
-
           const SectionTitle(title: 'DIAGNOSTIC TOOLS'),
           const SizedBox(height: 10),
-
           GridView.count(
             crossAxisCount: 2,
             shrinkWrap: true,
@@ -175,11 +227,8 @@ class DashboardPage extends StatelessWidget {
               ),
             ],
           ),
-
           const SizedBox(height: 25),
-
           const SectionTitle(title: 'DIAGNOSTIC REPORT'),
-
           const Card(
             child: ListTile(
               leading: Icon(Icons.description_outlined),
@@ -288,7 +337,7 @@ class _DeviceOverviewState extends State<DeviceOverview> {
 }
 
 // ============================================================
-// LIVE DEVICE INFORMATION
+// DEVICE INFORMATION
 // ============================================================
 
 class DeviceInfoPage extends StatefulWidget {
@@ -307,6 +356,10 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
   int? batteryLevel;
   BatteryState? batteryState;
 
+  Map<String, dynamic> systemDiagnostics = {};
+  Map<String, dynamic> vendorDiagnostics = {};
+  Map<String, dynamic> networkDiagnostics = {};
+
   Timer? refreshTimer;
   StreamSubscription<BatteryState>? batterySubscription;
 
@@ -324,7 +377,6 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
   @override
   void initState() {
     super.initState();
-
     initializeMonitoring();
   }
 
@@ -364,15 +416,21 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
         devicePlugin.androidInfo,
         battery.batteryLevel,
         battery.batteryState,
+        getNativeDiagnostics('getSystemDiagnostics'),
+        getNativeDiagnostics('getVendorDiagnostics'),
+        getNativeDiagnostics('getNetworkDiagnostics'),
       ]);
 
-      final AndroidDeviceInfo newInfo =
-          results[0] as AndroidDeviceInfo;
+      final newInfo = results[0] as AndroidDeviceInfo;
+      final newBatteryLevel = results[1] as int;
+      final newBatteryState = results[2] as BatteryState;
 
-      final int newBatteryLevel = results[1] as int;
-
-      final BatteryState newBatteryState =
-          results[2] as BatteryState;
+      final newSystem =
+          results[3] as Map<String, dynamic>;
+      final newVendor =
+          results[4] as Map<String, dynamic>;
+      final newNetwork =
+          results[5] as Map<String, dynamic>;
 
       if (!mounted) return;
 
@@ -380,6 +438,10 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
         info = newInfo;
         batteryLevel = newBatteryLevel;
         batteryState = newBatteryState;
+
+        systemDiagnostics = newSystem;
+        vendorDiagnostics = newVendor;
+        networkDiagnostics = newNetwork;
 
         readError = '';
         loading = false;
@@ -409,16 +471,6 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
       });
     } finally {
       refreshing = false;
-    }
-  }
-
-  void addHistory(List<double> history, double? value) {
-    if (value == null) return;
-
-    history.add(value);
-
-    while (history.length > maxHistoryPoints) {
-      history.removeAt(0);
     }
   }
 
@@ -503,7 +555,6 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
   void dispose() {
     refreshTimer?.cancel();
     batterySubscription?.cancel();
-
     super.dispose();
   }
 
@@ -531,10 +582,7 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
-                  Icons.warning_amber,
-                  size: 45,
-                ),
+                const Icon(Icons.warning_amber, size: 45),
                 const SizedBox(height: 12),
                 const Text(
                   'Unable to retrieve device information.',
@@ -554,13 +602,22 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
 
     final data = info!;
 
+    final ramUsage = calculateRamUsage(data);
+    final storageUsage = calculateStorageUsage(data);
+
+    final rootIndicators = systemDiagnostics['rootIndicators'];
+
+    final rootEvidence = rootIndicators is List
+        ? rootIndicators.map((item) => item.toString()).join(', ')
+        : 'UNKNOWN';
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Device Information'),
         actions: [
           IconButton(
             tooltip: 'Refresh now',
-            onPressed: refreshInformation,
+            onPressed: refreshing ? null : refreshInformation,
             icon: const Icon(Icons.refresh),
           ),
         ],
@@ -598,9 +655,7 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
                   const SizedBox(height: 5),
                   Text(
                     'Android ${data.version.release}',
-                    style: const TextStyle(
-                      color: Colors.white70,
-                    ),
+                    style: const TextStyle(color: Colors.white70),
                   ),
                 ],
               ),
@@ -646,8 +701,7 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      'Refresh interval: '
-                      '${refreshInterval.inSeconds} seconds',
+                      'Refresh interval: ${refreshInterval.inSeconds} seconds',
                       style: const TextStyle(
                         color: Colors.black54,
                         fontSize: 12,
@@ -667,9 +721,7 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
                       child: OutlinedButton.icon(
                         onPressed: toggleMonitoring,
                         icon: Icon(
-                          monitoring
-                              ? Icons.pause
-                              : Icons.play_arrow,
+                          monitoring ? Icons.pause : Icons.play_arrow,
                         ),
                         label: Text(
                           monitoring
@@ -695,49 +747,40 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
 
             const SizedBox(height: 20),
 
-            // LIVE PERFORMANCE
-
             const SectionTitle(title: 'LIVE PERFORMANCE'),
             const SizedBox(height: 10),
 
-            LiveMetricCard(
+            const LiveMetricCard(
               title: 'CPU USAGE',
               value: 'UNKNOWN',
               subtitle:
-                  'CPU utilization is not exposed by the current Flutter APIs.',
-              history: const [],
+                  'CPU utilization is not exposed by the current implementation.',
+              history: [],
               unavailable: true,
             ),
 
             LiveMetricCard(
               title: 'RAM USAGE',
-              value: formatPercentage(calculateRamUsage(data)),
-              subtitle:
-                  '${formatRam(data.physicalRamSize)} total RAM',
-              history: ramHistory,
-              unavailable: calculateRamUsage(data) == null,
+              value: formatPercentage(ramUsage),
+              subtitle: '${formatRam(data.physicalRamSize)} total RAM',
+              history: List<double>.unmodifiable(ramHistory),
+              unavailable: ramUsage == null,
             ),
 
             LiveMetricCard(
               title: 'BATTERY LEVEL',
-              value: batteryLevel == null
-                  ? 'UNKNOWN'
-                  : '$batteryLevel%',
+              value: batteryLevel == null ? 'UNKNOWN' : '$batteryLevel%',
               subtitle: batteryStateName(batteryState),
-              history: batteryHistory,
+              history: List<double>.unmodifiable(batteryHistory),
               unavailable: batteryLevel == null,
             ),
 
             LiveMetricCard(
               title: 'STORAGE USAGE',
-              value: formatPercentage(
-                calculateStorageUsage(data),
-              ),
-              subtitle:
-                  '${formatBytes(data.totalDiskSize)} total storage',
-              history: storageHistory,
-              unavailable:
-                  calculateStorageUsage(data) == null,
+              value: formatPercentage(storageUsage),
+              subtitle: '${formatBytes(data.totalDiskSize)} total storage',
+              history: List<double>.unmodifiable(storageHistory),
+              unavailable: storageUsage == null,
             ),
 
             const SizedBox(height: 20),
@@ -750,8 +793,7 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
               'Device': data.device,
               'Product': data.product,
               'Device Name': data.name,
-              'Physical Device':
-                  data.isPhysicalDevice ? 'Yes' : 'No',
+              'Physical Device': data.isPhysicalDevice ? 'Yes' : 'No',
             }),
 
             const SizedBox(height: 18),
@@ -775,13 +817,10 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
             InfoCard(items: {
               'Hardware Identifier': data.hardware,
               'Board': data.board,
-              'CPU Cores':
-                  Platform.numberOfProcessors.toString(),
+              'CPU Cores': Platform.numberOfProcessors.toString(),
               'Supported ABIs': data.supportedAbis.join(', '),
-              '32-bit ABIs':
-                  data.supported32BitAbis.join(', '),
-              '64-bit ABIs':
-                  data.supported64BitAbis.join(', '),
+              '32-bit ABIs': data.supported32BitAbis.join(', '),
+              '64-bit ABIs': data.supported64BitAbis.join(', '),
               'CPU Frequency': 'UNSUPPORTED',
               'CPU Usage': 'UNKNOWN',
               'Chipset Marketing Name': 'NOT VERIFIED',
@@ -791,36 +830,26 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
 
             const SectionTitle(title: 'MEMORY INFORMATION'),
             InfoCard(items: {
-              'Physical RAM':
-                  formatRam(data.physicalRamSize),
-              'Available RAM':
-                  formatRam(data.availableRamSize),
-              'RAM Usage':
-                  formatPercentage(calculateRamUsage(data)),
-              'Low RAM Device':
-                  data.isLowRamDevice ? 'Yes' : 'No',
+              'Physical RAM': formatRam(data.physicalRamSize),
+              'Available RAM': formatRam(data.availableRamSize),
+              'RAM Usage': formatPercentage(ramUsage),
+              'Low RAM Device': data.isLowRamDevice ? 'Yes' : 'No',
             }),
 
             const SizedBox(height: 18),
 
             const SectionTitle(title: 'STORAGE INFORMATION'),
             InfoCard(items: {
-              'Total Disk Size':
-                  formatBytes(data.totalDiskSize),
-              'Free Disk Space':
-                  formatBytes(data.freeDiskSize),
+              'Total Disk Size': formatBytes(data.totalDiskSize),
+              'Free Disk Space': formatBytes(data.freeDiskSize),
               'Used Disk Space':
                   data.totalDiskSize > 0 &&
                           data.freeDiskSize <= data.totalDiskSize
                       ? formatBytes(
-                          data.totalDiskSize -
-                              data.freeDiskSize,
+                          data.totalDiskSize - data.freeDiskSize,
                         )
                       : 'Unavailable',
-              'Storage Usage':
-                  formatPercentage(
-                    calculateStorageUsage(data),
-                  ),
+              'Storage Usage': formatPercentage(storageUsage),
             }),
 
             const SizedBox(height: 18),
@@ -832,14 +861,10 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
                 final media = MediaQuery.of(context);
 
                 final pixelWidth =
-                    (media.size.width *
-                            media.devicePixelRatio)
-                        .round();
+                    (media.size.width * media.devicePixelRatio).round();
 
                 final pixelHeight =
-                    (media.size.height *
-                            media.devicePixelRatio)
-                        .round();
+                    (media.size.height * media.devicePixelRatio).round();
 
                 return InfoCard(items: {
                   'App Window Pixel Size':
@@ -849,10 +874,8 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
                           '${media.size.height.toStringAsFixed(1)} dp',
                   'Pixel Density':
                       '${media.devicePixelRatio.toStringAsFixed(2)}x',
-                  'Physical Panel Resolution':
-                      'UNKNOWN',
-                  'Refresh Rate':
-                      'UNSUPPORTED',
+                  'Physical Panel Resolution': 'UNKNOWN',
+                  'Refresh Rate': 'UNSUPPORTED',
                 });
               },
             ),
@@ -860,14 +883,10 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
             const SizedBox(height: 18),
 
             const SectionTitle(title: 'BATTERY INFORMATION'),
-
             InfoCard(items: {
               'Battery Level':
-                  batteryLevel == null
-                      ? 'UNKNOWN'
-                      : '$batteryLevel%',
-              'Battery State':
-                  batteryStateName(batteryState),
+                  batteryLevel == null ? 'UNKNOWN' : '$batteryLevel%',
+              'Battery State': batteryStateName(batteryState),
               'Battery Temperature': 'UNSUPPORTED',
               'Battery Health': 'NOT TESTED',
               'Full Charge Capacity': 'UNSUPPORTED',
@@ -875,69 +894,105 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
 
             const SizedBox(height: 18),
 
+            // OS INTEGRITY
+
             const SectionTitle(title: 'OS INTEGRITY'),
-
             InfoCard(items: {
-              'Build Tags': data.tags,
-              'Build Type': data.type,
-              'Root Status': 'UNKNOWN',
-              'SU Binary': 'NOT TESTED',
-              'Previously Rooted': 'UNKNOWN',
-              'Verified Boot': 'UNKNOWN',
-              'Bootloader Lock': 'UNKNOWN',
-              'System Modification': 'NOT TESTED',
-              'Official Firmware': 'NOT VERIFIED',
+              'Root Status': mapValue(systemDiagnostics, 'rootStatus'),
+              'Root Evidence': rootEvidence,
+              'SU Binary Detected':
+                  mapBool(systemDiagnostics, 'suBinaryDetected'),
+              'Root Package Detected':
+                  mapBool(systemDiagnostics, 'rootPackageDetected'),
+              'Build Tags':
+                  mapValue(systemDiagnostics, 'buildTags'),
+              'Build Type':
+                  mapValue(systemDiagnostics, 'buildType'),
+              'Verified Boot':
+                  mapValue(systemDiagnostics, 'verifiedBoot'),
+              'Bootloader Lock':
+                  mapValue(systemDiagnostics, 'bootloaderLock'),
+              'VBMeta Device State':
+                  mapValue(systemDiagnostics, 'vbmetaDeviceState'),
+              'Previously Rooted':
+                  mapValue(systemDiagnostics, 'previouslyRooted'),
+              'Official Firmware':
+                  mapValue(systemDiagnostics, 'officialFirmware'),
             }),
 
             const SizedBox(height: 18),
 
-            const SectionTitle(
-              title: 'FIRMWARE & RECOVERY',
-            ),
+            // FIRMWARE & RECOVERY
 
+            const SectionTitle(title: 'FIRMWARE & RECOVERY'),
             InfoCard(items: {
-              'Bootloader': data.bootloader,
-              'Kernel Version': 'UNSUPPORTED',
-              'Recovery Environment': 'UNKNOWN',
-              'TWRP Version': 'UNKNOWN',
+              'Bootloader':
+                  mapValue(systemDiagnostics, 'bootloader'),
+              'Kernel Version':
+                  mapValue(systemDiagnostics, 'kernelVersion'),
+              'Recovery Version':
+                  mapValue(systemDiagnostics, 'recoveryVersion'),
+              'TWRP Version':
+                  mapValue(systemDiagnostics, 'twrpVersion'),
+              'Firmware Fingerprint':
+                  mapValue(systemDiagnostics, 'buildFingerprint'),
+              'Security Patch':
+                  mapValue(systemDiagnostics, 'securityPatch'),
               'BIOS Version': 'NOT APPLICABLE',
-              'Firmware Build': data.display,
             }),
 
             const SizedBox(height: 18),
 
-            const SectionTitle(
-              title: 'VENDOR & REGIONAL IDENTITY',
-            ),
+            // VENDOR
 
+            const SectionTitle(title: 'VENDOR & REGIONAL IDENTITY'),
             InfoCard(items: {
-              'Manufacturer': data.manufacturer,
-              'Brand': data.brand,
-              'Model': data.model,
-              'Product': data.product,
-              'Carrier Branding': 'UNKNOWN',
-              'Sales Region': 'UNKNOWN',
-              'Samsung CSC': 'UNKNOWN',
-              'Manufacturing Country': 'UNKNOWN',
-              'Original Market': 'UNKNOWN',
+              'Manufacturer':
+                  mapValue(vendorDiagnostics, 'manufacturer'),
+              'Brand': mapValue(vendorDiagnostics, 'brand'),
+              'Model': mapValue(vendorDiagnostics, 'model'),
+              'Product': mapValue(vendorDiagnostics, 'product'),
+              'Device': mapValue(vendorDiagnostics, 'device'),
+              'Sales Region':
+                  mapValue(vendorDiagnostics, 'salesRegion'),
+              'Sales Code':
+                  mapValue(vendorDiagnostics, 'salesCode'),
+              'Carrier Branding':
+                  mapValue(vendorDiagnostics, 'carrierBranding'),
+              'Operator Branding':
+                  mapValue(vendorDiagnostics, 'operatorBranding'),
+              'Country Code':
+                  mapValue(vendorDiagnostics, 'countryCode'),
+              'Hardware Platform':
+                  mapValue(vendorDiagnostics, 'hardwarePlatform'),
+              'Manufacturing Country':
+                  mapValue(vendorDiagnostics, 'manufacturingCountry'),
+              'Original Market':
+                  mapValue(vendorDiagnostics, 'originalMarket'),
             }),
 
             const SizedBox(height: 18),
 
-            const SectionTitle(
-              title: 'SIM & NETWORK COMPATIBILITY',
-            ),
+            // NETWORK
 
+            const SectionTitle(title: 'SIM & NETWORK COMPATIBILITY'),
             InfoCard(items: {
-              'SIM Status': 'UNKNOWN',
-              'SIM Operator': 'UNKNOWN',
-              'SIM Country': 'UNKNOWN',
-              'Network Registration': 'UNKNOWN',
-              'Network Type': 'UNKNOWN',
-              'Roaming Status': 'UNKNOWN',
-              'Carrier Lock': 'UNKNOWN',
-              'SIM Validity': 'NOT TESTED',
-              'Network Compatibility': 'NOT TESTED',
+              'SIM State':
+                  mapValue(networkDiagnostics, 'simState'),
+              'SIM Operator':
+                  mapValue(networkDiagnostics, 'simOperator'),
+              'SIM Country':
+                  mapValue(networkDiagnostics, 'simCountry'),
+              'Network Operator':
+                  mapValue(networkDiagnostics, 'networkOperator'),
+              'Network Type':
+                  mapValue(networkDiagnostics, 'networkType'),
+              'Roaming':
+                  mapValue(networkDiagnostics, 'roaming'),
+              'Carrier Lock':
+                  mapValue(networkDiagnostics, 'carrierLock'),
+              'SIM Validity':
+                  mapValue(networkDiagnostics, 'simValidity'),
             }),
 
             const SizedBox(height: 20),
@@ -947,9 +1002,7 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: Colors.blueGrey.withValues(
-                  alpha: 0.08,
-                ),
+                color: Colors.blueGrey.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
                   color: Colors.blueGrey.shade100,
@@ -966,15 +1019,14 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
                   Expanded(
                     child: Text(
                       'TRANSPARENCY NOTICE\n'
-                      'Information is retrieved from available '
-                      'Android and Flutter APIs. '
-                      'Some values are restricted or unavailable. '
-                      'UNKNOWN means the application cannot '
-                      'currently verify the information. '
-                      'NOT TESTED means no diagnostic test '
-                      'has been performed. '
-                      'NOT DETECTED does not prove that a '
-                      'condition never existed.',
+                      'Information is retrieved from available Android '
+                      'and Flutter APIs. Some values are restricted or '
+                      'unavailable. UNKNOWN means the application cannot '
+                      'currently verify the information. NOT TESTED means '
+                      'no diagnostic test has been performed. '
+                      'NOT DETECTED does not prove that a condition '
+                      'never existed. Root detection is heuristic and '
+                      'may not detect concealed modifications.',
                       style: TextStyle(
                         fontSize: 12,
                         height: 1.5,
@@ -1041,9 +1093,7 @@ class LiveMetricCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: unavailable
-                        ? Colors.blueGrey
-                        : primaryBlue,
+                    color: unavailable ? Colors.blueGrey : primaryBlue,
                   ),
                 ),
               ],
@@ -1071,9 +1121,7 @@ class LiveMetricCard extends StatelessWidget {
                       ),
                     )
                   : CustomPaint(
-                      painter: LiveGraphPainter(
-                        values: history,
-                      ),
+                      painter: LiveGraphPainter(values: history),
                     ),
             ),
           ],
@@ -1084,15 +1132,13 @@ class LiveMetricCard extends StatelessWidget {
 }
 
 // ============================================================
-// LIVE GRAPH PAINTER
+// GRAPH PAINTER
 // ============================================================
 
 class LiveGraphPainter extends CustomPainter {
   final List<double> values;
 
-  LiveGraphPainter({
-    required this.values,
-  });
+  LiveGraphPainter({required this.values});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1124,22 +1170,15 @@ class LiveGraphPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     final path = Path();
-
     final fillPath = Path();
 
     final stepX = size.width / (maxHistoryPoints - 1);
-
-    final startX =
-        size.width - ((values.length - 1) * stepX);
+    final startX = size.width - ((values.length - 1) * stepX);
 
     for (int i = 0; i < values.length; i++) {
       final x = startX + (i * stepX);
-
-      final normalized =
-          (values[i].clamp(0, 100)) / 100;
-
-      final y = size.height -
-          (normalized * size.height);
+      final normalized = values[i].clamp(0.0, 100.0) / 100;
+      final y = size.height - (normalized * size.height);
 
       if (i == 0) {
         path.moveTo(x, y);
@@ -1151,8 +1190,7 @@ class LiveGraphPainter extends CustomPainter {
       }
     }
 
-    final lastX = startX +
-        ((values.length - 1) * stepX);
+    final lastX = startX + ((values.length - 1) * stepX);
 
     fillPath.lineTo(lastX, size.height);
     fillPath.close();
@@ -1160,27 +1198,27 @@ class LiveGraphPainter extends CustomPainter {
     canvas.drawPath(fillPath, fillPaint);
     canvas.drawPath(path, linePaint);
 
-    final lastValue = values.last.clamp(0, 100);
-
-    final lastY = size.height -
-        ((lastValue / 100) * size.height);
-
-    final pointPaint = Paint()
-      ..color = primaryBlue
-      ..style = PaintingStyle.fill;
+    final lastValue = values.last.clamp(0.0, 100.0);
+    final lastY = size.height - ((lastValue / 100) * size.height);
 
     canvas.drawCircle(
       Offset(lastX, lastY),
       3.5,
-      pointPaint,
+      Paint()
+        ..color = primaryBlue
+        ..style = PaintingStyle.fill,
     );
   }
 
   @override
-  bool shouldRepaint(
-    covariant LiveGraphPainter oldDelegate,
-  ) {
-    return oldDelegate.values != values;
+  bool shouldRepaint(covariant LiveGraphPainter oldDelegate) {
+    if (oldDelegate.values.length != values.length) return true;
+
+    for (int i = 0; i < values.length; i++) {
+      if (oldDelegate.values[i] != values[i]) return true;
+    }
+
+    return false;
   }
 }
 
@@ -1203,7 +1241,9 @@ class InfoCard extends StatelessWidget {
         normalized == 'UNAVAILABLE' ||
         normalized == 'UNSUPPORTED' ||
         normalized == 'NOT TESTED' ||
-        normalized == 'NOT VERIFIED';
+        normalized == 'NOT VERIFIED' ||
+        normalized == 'PERMISSION_REQUIRED' ||
+        normalized == 'PERMISSION_REQUIRED_OR_UNKNOWN';
   }
 
   @override
@@ -1234,9 +1274,7 @@ class InfoCard extends StatelessWidget {
                 Expanded(
                   flex: 5,
                   child: Text(
-                    entry.value.isEmpty
-                        ? 'UNKNOWN'
-                        : entry.value,
+                    entry.value.isEmpty ? 'UNKNOWN' : entry.value,
                     textAlign: TextAlign.end,
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
@@ -1311,9 +1349,7 @@ class DiagnosticTile extends StatelessWidget {
             () {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(
-                    '$title module is coming soon.',
-                  ),
+                  content: Text('$title module is coming soon.'),
                 ),
               );
             },
@@ -1325,9 +1361,7 @@ class DiagnosticTile extends StatelessWidget {
             children: [
               Icon(
                 icon,
-                color: active
-                    ? primaryBlue
-                    : Colors.blueGrey,
+                color: active ? primaryBlue : Colors.blueGrey,
                 size: 25,
               ),
               const SizedBox(height: 8),
@@ -1352,3 +1386,4 @@ class DiagnosticTile extends StatelessWidget {
     );
   }
 }
+```
