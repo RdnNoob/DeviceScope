@@ -1385,4 +1385,3 @@ class DiagnosticTile extends StatelessWidget {
     );
   }
 }
-```
