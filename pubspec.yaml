@@ -11,8 +11,10 @@ dependencies:
     sdk: flutter
   device_info_plus: ^13.3.0
   battery_plus: ^7.1.2
-  connectivity_plus: ^7.3.2
-  network_info_plus: ^8.2.2
+  # Pin 7.3.1: 7.3.2 upgrades nm/dbus and conflicts with battery_plus 7.1.2.
+  connectivity_plus: 7.3.1
+  # Keep network_info_plus on the compatible major line while resolving nm/dbus.
+  network_info_plus: 7.0.0
 
 dev_dependencies:
   flutter_test:
