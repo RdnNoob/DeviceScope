@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.os.Environment
 import android.telephony.TelephonyManager
 import android.content.Context
+import android.net.TrafficStats
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -14,38 +15,22 @@ import java.io.InputStreamReader
 
 class MainActivity : FlutterActivity() {
 
-    private val CHANNEL =
-        "com.rdnnoob.devicescope/diagnostics"
+    private val CHANNEL = "com.rdnnoob.devicescope/diagnostics"
 
-    override fun configureFlutterEngine(
-        flutterEngine: FlutterEngine
-    ) {
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        MethodChannel(
-            flutterEngine.dartExecutor.binaryMessenger,
-            CHANNEL
-        ).setMethodCallHandler { call, result ->
-
-            when (call.method) {
-
-                "getSystemDiagnostics" -> {
-                    result.success(getSystemDiagnostics())
-                }
-
-                "getVendorDiagnostics" -> {
-                    result.success(getVendorDiagnostics())
-                }
-
-                "getNetworkDiagnostics" -> {
-                    result.success(getNetworkDiagnostics())
-                }
-
-                else -> {
-                    result.notImplemented()
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "getSystemDiagnostics" -> result.success(getSystemDiagnostics())
+                    "getVendorDiagnostics" -> result.success(getVendorDiagnostics())
+                    "getNetworkDiagnostics" -> result.success(getNetworkDiagnostics())
+                    "getTrafficStats" -> result.success(getTrafficStats())
+                    "getNetstat" -> result.success(getNetstat())
+                    else -> result.notImplemented()
                 }
             }
-        }
     }
 
     // =====================================================
@@ -53,150 +38,55 @@ class MainActivity : FlutterActivity() {
     // =====================================================
 
     private fun getSystemDiagnostics(): Map<String, Any?> {
-
         val tags = Build.TAGS ?: ""
         val type = Build.TYPE ?: ""
-
         val suPaths = listOf(
-            "/system/bin/su",
-            "/system/xbin/su",
-            "/sbin/su",
-            "/system/su",
-            "/vendor/bin/su",
-            "/data/local/bin/su",
+            "/system/bin/su", "/system/xbin/su", "/sbin/su",
+            "/system/su", "/vendor/bin/su", "/data/local/bin/su",
             "/data/local/xbin/su"
         )
-
-        val suDetected = suPaths.any {
-            File(it).exists()
-        }
-
+        val suDetected = suPaths.any { File(it).exists() }
         val rootPackages = listOf(
-            "com.topjohnwu.magisk",
-            "eu.chainfire.supersu",
+            "com.topjohnwu.magisk", "eu.chainfire.supersu",
             "com.koushikdutta.superuser"
         )
-
         val rootPackageDetected = rootPackages.any {
             try {
+                @Suppress("DEPRECATION")
                 packageManager.getPackageInfo(it, 0)
                 true
-            } catch (_: Exception) {
-                false
-            }
+            } catch (_: Exception) { false }
         }
-
-        val verifiedBoot = readSystemProperty(
-            "ro.boot.verifiedbootstate"
-        )
-
-        val flashLocked = readSystemProperty(
-            "ro.boot.flash.locked"
-        )
-
-        val vbmetaState = readSystemProperty(
-            "ro.boot.vbmeta.device_state"
-        )
-
-        val bootloader = readSystemProperty(
-            "ro.bootloader"
-        )
-
-        val kernelVersion = try {
-            System.getProperty("os.version") ?: "UNKNOWN"
-        } catch (_: Exception) {
-            "UNKNOWN"
-        }
-
-        val twrpVersion = readSystemProperty(
-            "ro.twrp.version"
-        )
-
-        val recoveryVersion = readSystemProperty(
-            "ro.bootimage.build.version"
-        )
-
+        val verifiedBoot = readSystemProperty("ro.boot.verifiedbootstate")
+        val flashLocked = readSystemProperty("ro.boot.flash.locked")
+        val vbmetaState = readSystemProperty("ro.boot.vbmeta.device_state")
+        val bootloader = readSystemProperty("ro.bootloader")
+        val kernelVersion = try { System.getProperty("os.version") ?: "UNKNOWN" }
+            catch (_: Exception) { "UNKNOWN" }
+        val twrpVersion = readSystemProperty("ro.twrp.version")
+        val recoveryVersion = readSystemProperty("ro.bootimage.build.version")
         val rootIndicators = mutableListOf<String>()
-
-        if (suDetected) {
-            rootIndicators.add("SU_BINARY_DETECTED")
-        }
-
-        if (rootPackageDetected) {
-            rootIndicators.add("ROOT_PACKAGE_DETECTED")
-        }
-
-        if (tags.contains("test-keys", ignoreCase = true)) {
-            rootIndicators.add("TEST_KEYS")
-        }
+        if (suDetected) rootIndicators.add("SU_BINARY_DETECTED")
+        if (rootPackageDetected) rootIndicators.add("ROOT_PACKAGE_DETECTED")
+        if (tags.contains("test-keys", ignoreCase = true)) rootIndicators.add("TEST_KEYS")
 
         return mapOf(
-
             "buildTags" to tags,
             "buildType" to type,
-
             "buildFingerprint" to Build.FINGERPRINT,
-
-            "securityPatch" to
-                if (Build.VERSION.SDK_INT >= 23)
-                    Build.VERSION.SECURITY_PATCH
-                else
-                    "UNSUPPORTED",
-
-            "bootloader" to
-                if (bootloader.isNotBlank())
-                    bootloader
-                else
-                    "UNKNOWN",
-
+            "securityPatch" to if (Build.VERSION.SDK_INT >= 23) Build.VERSION.SECURITY_PATCH else "UNSUPPORTED",
+            "bootloader" to bootloader.ifBlank { "UNKNOWN" },
             "kernelVersion" to kernelVersion,
-
             "suBinaryDetected" to suDetected,
-
             "rootPackageDetected" to rootPackageDetected,
-
             "rootIndicators" to rootIndicators,
-
-            "rootStatus" to when {
-                suDetected || rootPackageDetected ->
-                    "DETECTED"
-
-                else ->
-                    "NOT_DETECTED"
-            },
-
-            "verifiedBoot" to
-                if (verifiedBoot.isNotBlank())
-                    verifiedBoot
-                else
-                    "UNKNOWN",
-
-            "bootloaderLock" to
-                if (flashLocked.isNotBlank())
-                    flashLocked
-                else
-                    "UNKNOWN",
-
-            "vbmetaDeviceState" to
-                if (vbmetaState.isNotBlank())
-                    vbmetaState
-                else
-                    "UNKNOWN",
-
-            "twrpVersion" to
-                if (twrpVersion.isNotBlank())
-                    twrpVersion
-                else
-                    "UNKNOWN",
-
-            "recoveryVersion" to
-                if (recoveryVersion.isNotBlank())
-                    recoveryVersion
-                else
-                    "UNKNOWN",
-
+            "rootStatus" to if (suDetected || rootPackageDetected) "DETECTED" else "NOT_DETECTED",
+            "verifiedBoot" to verifiedBoot.ifBlank { "UNKNOWN" },
+            "bootloaderLock" to flashLocked.ifBlank { "UNKNOWN" },
+            "vbmetaDeviceState" to vbmetaState.ifBlank { "UNKNOWN" },
+            "twrpVersion" to twrpVersion.ifBlank { "UNKNOWN" },
+            "recoveryVersion" to recoveryVersion.ifBlank { "UNKNOWN" },
             "previouslyRooted" to "UNKNOWN",
-
             "officialFirmware" to "NOT_VERIFIED"
         )
     }
@@ -206,55 +96,23 @@ class MainActivity : FlutterActivity() {
     // =====================================================
 
     private fun getVendorDiagnostics(): Map<String, Any?> {
-
-        val manufacturer = Build.MANUFACTURER
-        val brand = Build.BRAND
-        val model = Build.MODEL
-        val product = Build.PRODUCT
-        val device = Build.DEVICE
-
         val properties = mapOf(
-            "manufacturer" to manufacturer,
-            "brand" to brand,
-            "model" to model,
-            "product" to product,
-            "device" to device,
-
-            "salesRegion" to readSystemProperty(
-                "ro.csc.sales_code"
-            ),
-
-            "salesCode" to readSystemProperty(
-                "ro.boot.sales_code"
-            ),
-
-            "carrierBranding" to readSystemProperty(
-                "ro.carrier"
-            ),
-
-            "operatorBranding" to readSystemProperty(
-                "ro.boot.carrierid"
-            ),
-
-            "countryCode" to readSystemProperty(
-                "ro.csc.country_code"
-            ),
-
-            "hardwarePlatform" to readSystemProperty(
-                "ro.board.platform"
-            ),
-
+            "manufacturer" to Build.MANUFACTURER,
+            "brand" to Build.BRAND,
+            "model" to Build.MODEL,
+            "product" to Build.PRODUCT,
+            "device" to Build.DEVICE,
+            "salesRegion" to readSystemProperty("ro.csc.sales_code"),
+            "salesCode" to readSystemProperty("ro.boot.sales_code"),
+            "carrierBranding" to readSystemProperty("ro.carrier"),
+            "operatorBranding" to readSystemProperty("ro.boot.carrierid"),
+            "countryCode" to readSystemProperty("ro.csc.country_code"),
+            "hardwarePlatform" to readSystemProperty("ro.board.platform"),
             "manufacturingCountry" to "UNKNOWN",
-
             "originalMarket" to "UNKNOWN"
         )
-
         return properties.mapValues { (_, value) ->
-            if (value is String && value.isBlank()) {
-                "UNKNOWN"
-            } else {
-                value
-            }
+            if (value is String && value.isBlank()) "UNKNOWN" else value
         }
     }
 
@@ -263,41 +121,17 @@ class MainActivity : FlutterActivity() {
     // =====================================================
 
     private fun getNetworkDiagnostics(): Map<String, Any?> {
-
-        val telephony = getSystemService(
-            Context.TELEPHONY_SERVICE
-        ) as TelephonyManager
-
-        val simState = try {
-            telephony.simState
-        } catch (_: SecurityException) {
-            -1
-        }
-
+        val telephony = getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+        val simState = try { telephony.simState } catch (_: SecurityException) { -1 }
         val simStateName = when (simState) {
-
-            TelephonyManager.SIM_STATE_ABSENT ->
-                "ABSENT"
-
-            TelephonyManager.SIM_STATE_READY ->
-                "READY"
-
-            TelephonyManager.SIM_STATE_PIN_REQUIRED ->
-                "PIN_REQUIRED"
-
-            TelephonyManager.SIM_STATE_PUK_REQUIRED ->
-                "PUK_REQUIRED"
-
-            TelephonyManager.SIM_STATE_NETWORK_LOCKED ->
-                "NETWORK_LOCKED"
-
-            TelephonyManager.SIM_STATE_UNKNOWN ->
-                "UNKNOWN"
-
-            else ->
-                "PERMISSION_REQUIRED_OR_UNKNOWN"
+            TelephonyManager.SIM_STATE_ABSENT -> "ABSENT"
+            TelephonyManager.SIM_STATE_READY -> "READY"
+            TelephonyManager.SIM_STATE_PIN_REQUIRED -> "PIN_REQUIRED"
+            TelephonyManager.SIM_STATE_PUK_REQUIRED -> "PUK_REQUIRED"
+            TelephonyManager.SIM_STATE_NETWORK_LOCKED -> "NETWORK_LOCKED"
+            TelephonyManager.SIM_STATE_UNKNOWN -> "UNKNOWN"
+            else -> "PERMISSION_REQUIRED_OR_UNKNOWN"
         }
-
         return mapOf(
             "simState" to simStateName,
             "simOperator" to "PERMISSION_REQUIRED",
@@ -311,31 +145,77 @@ class MainActivity : FlutterActivity() {
     }
 
     // =====================================================
+    // LIVE TRAFFIC
+    // =====================================================
+
+    private fun getTrafficStats(): Map<String, Any?> {
+        // TrafficStats returns -1 when Android cannot provide a counter.
+        // These are device-wide counters, not app-only traffic.
+        val rx = TrafficStats.getTotalRxBytes()
+        val tx = TrafficStats.getTotalTxBytes()
+        return mapOf(
+            "rxBytes" to if (rx >= 0L) rx else null,
+            "txBytes" to if (tx >= 0L) tx else null
+        )
+    }
+
+    // =====================================================
+    // NETSTAT (best-effort: Android may restrict socket visibility)
+    // =====================================================
+
+    private fun getNetstat(): Map<String, Any?> {
+        val connections = mutableListOf<String>()
+        val files = listOf(
+            "/proc/net/tcp" to "TCP4",
+            "/proc/net/tcp6" to "TCP6",
+            "/proc/net/udp" to "UDP4",
+            "/proc/net/udp6" to "UDP6"
+        )
+        for ((path, protocol) in files) {
+            try {
+                File(path).bufferedReader().useLines { lines ->
+                    lines.drop(1).forEach { line ->
+                        val columns = line.trim().split(Regex("\\s+"))
+                        if (columns.size >= 4) {
+                            val local = columns[1]
+                            val remote = columns[2]
+                            val state = columns[3]
+                            connections.add("$protocol local=$local remote=$remote state=${socketState(state)}")
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+                // Ignore unreadable tables; report readable entries from other tables.
+            }
+        }
+        return mapOf("connections" to connections)
+    }
+
+    private fun socketState(hex: String): String = when (hex.uppercase()) {
+        "01" -> "ESTABLISHED"
+        "02" -> "SYN_SENT"
+        "03" -> "SYN_RECV"
+        "04" -> "FIN_WAIT1"
+        "05" -> "FIN_WAIT2"
+        "06" -> "TIME_WAIT"
+        "07" -> "CLOSE"
+        "08" -> "CLOSE_WAIT"
+        "09" -> "LAST_ACK"
+        "0A" -> "LISTEN"
+        "0B" -> "CLOSING"
+        else -> "UNKNOWN($hex)"
+    }
+
+    // =====================================================
     // ANDROID SYSTEM PROPERTY READER
     // =====================================================
 
-    private fun readSystemProperty(
-        key: String
-    ): String {
-
+    private fun readSystemProperty(key: String): String {
         return try {
-
-            val systemProperties = Class.forName(
-                "android.os.SystemProperties"
-            )
-
-            val getMethod = systemProperties.getMethod(
-                "get",
-                String::class.java
-            )
-
-            getMethod.invoke(
-                null,
-                key
-            ) as? String ?: ""
-
+            val systemProperties = Class.forName("android.os.SystemProperties")
+            val getMethod = systemProperties.getMethod("get", String::class.java)
+            getMethod.invoke(null, key) as? String ?: ""
         } catch (_: Exception) {
-
             ""
         }
     }
