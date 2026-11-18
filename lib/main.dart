@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:battery_plus/battery_plus.dart';
 import 'network_diagnostics_page.dart';
+import 'features/software_diagnostic/software_diagnostic_page.dart';
 
 void main() {
   runApp(const DeviceScopeApp());
