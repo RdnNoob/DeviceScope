@@ -186,11 +186,20 @@ class DashboardPage extends StatelessWidget {
                   );
                 },
               ),
-              const DiagnosticTile(
-                icon: Icons.system_update,
-                title: 'Software',
-                subtitle: 'System inspection',
-              ),
+              DiagnosticTile(
+  icon: Icons.system_update,
+  title: 'Software',
+  subtitle: 'System inspection',
+  active: true,
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const SoftwareDiagnosticPage(),
+      ),
+    );
+  },
+),
               const DiagnosticTile(
                 icon: Icons.battery_full,
                 title: 'Battery',
