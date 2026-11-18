@@ -56,7 +56,7 @@ jobs:
         run: |
           mkdir -p android/app/src/main/kotlin/com/rdnnoob/devicescope
           cp android-native/MainActivity.kt android/app/src/main/kotlin/com/rdnnoob/devicescope/MainActivity.kt
-
+          cp android-native/SoftwareDiagnostics.kt android/app/src/main/kotlin/com/rdnnoob/devicescope/SoftwareDiagnostics.kt
       - name: Configure Android signing
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
